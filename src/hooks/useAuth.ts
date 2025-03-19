@@ -7,6 +7,8 @@ import { User } from '@/types/user';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  isAuthenticated: boolean;
+  isReady: boolean;
   logout: () => Promise<void>;
   login: () => Promise<void>;
 }
@@ -26,7 +28,7 @@ export function useAuth(): AuthContextType {
       if (!authenticated) {
         await login();
       } else {
-        router.push('/dashboard');
+        router.push('/invoices');
       }
     } catch (error) {
       console.error('Login failed:', error);
@@ -49,6 +51,8 @@ export function useAuth(): AuthContextType {
       wallet: user.wallet
     } : null,
     loading: !ready,
+    isAuthenticated: authenticated,
+    isReady: ready,
     logout: handleLogout,
     login: handleLogin
   };

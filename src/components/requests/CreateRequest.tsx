@@ -57,7 +57,7 @@ export async function createRequest({
       payer: payerAddress,
       payee: recipientAddress,
       amount: expectedAmount,
-      invoiceCurrency: 'USD',
+      invoiceCurrency: 'fUSDC-sepolia',
       paymentCurrency: 'fUSDC-sepolia',
     };
 

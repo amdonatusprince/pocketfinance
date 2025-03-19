@@ -11,7 +11,7 @@ export default function WelcomePage() {
 
   useEffect(() => {
     if (user) {
-      router.push('/dashboard');
+      router.push('/invoices');
     }
   }, [user, router]);
 

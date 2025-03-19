@@ -1,16 +1,22 @@
 export interface Transaction {
   date: string;
-  paymentId: string;
+  id: string;
   requestId?: string;
+  paymentReference?: string;
   client: string;
-  amount: number;
-  currency: string;
-  status: 'completed' | 'paid' | 'pending' | 'overdue';
+  amount: string;
+  currency: {
+    decimals: number;
+    value: string;
+  };
+  status: 'paid' | 'pending' | 'overdue';
   dueDate?: string;
-  fromAddress: string;
-  toAddress: string;
+  paidAt?: string;
+  payerAddress: string;
+  recipientAddress: string;
   reason: string;
   network: string;
+  type?: 'single' | 'batch';
   clientDetails: {
     name: string;
     email: string;
@@ -20,5 +26,10 @@ export interface Transaction {
     name: string;
     email: string;
     address: string;
+  };
+  createdAt: string;
+  isRecurring?: boolean;
+  recurrence?: {
+    frequency: 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY';
   };
 } 

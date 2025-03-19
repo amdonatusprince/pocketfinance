@@ -1,15 +1,15 @@
 'use client';
 
 import { WagmiProvider, createConfig, http } from 'wagmi';
-import { baseSepolia, base } from 'viem/chains';
+import { sepolia } from 'viem/chains';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 
 const config = createConfig({
-  chains: [baseSepolia, base],
+  chains: [sepolia],
   transports: {
-    [baseSepolia.id]: http(),
-    [base.id]: http(),
+    // [base.id]: http(),
+    [sepolia.id]: http(),
   },
 });
 

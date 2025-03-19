@@ -19,7 +19,6 @@ import {
 import { useTheme } from '@/components/providers/ThemeProvider';
 
 const navigation = [
-  { name: 'Transactions', href: '/transactions', icon: BarChart2 },
   { name: 'Invoices', href: '/invoices', icon: FileText },
   { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Assets', href: '/assets', icon: Wallet },

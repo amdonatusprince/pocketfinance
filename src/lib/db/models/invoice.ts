@@ -25,6 +25,7 @@ const InvoiceSchema = new mongoose.Schema<Invoice>({
   reason: String,
   dueDate: { type: String, required: true },
   createdAt: { type: String, required: true },
+  paidAt: { type: String },
   
   isRecurring: { type: Boolean, default: false },
   recurrence: {

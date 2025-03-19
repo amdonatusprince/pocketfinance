@@ -1,65 +1,6 @@
 import { Types } from "@requestnetwork/request-client.js";
 import { Invoice } from '@/types/invoice';
 
-export const dummyInvoices: Invoice[] = [
-  {
-    date: new Date().toISOString(),
-    id: 'req-1',
-    client: 'John Doe',
-    payerAddress: '0x1234567890123456789012345678901234567890',
-    recipientAddress: '0x0987654321098765432109876543210987654321',
-    amount: '1000000000000000000',
-    currency: {
-      decimals: 18,
-      value: 'USDC'
-    },
-    status: 'pending',
-    reason: 'Web development services',
-    network: 'Ethereum',
-    type: 'single',
-    clientDetails: {
-      name: 'John Doe',
-      email: 'john@example.com',
-      address: '123 Main St'
-    },
-    businessDetails: {
-      name: 'Web Dev Co',
-      email: 'contact@webdev.com',
-      address: '456 Business Ave'
-    },
-    dueDate: '2024-04-09',
-    createdAt: '2024-03-09'
-  },
-  {
-    date: new Date().toISOString(),
-    id: 'req-2',
-    client: 'Jane Smith',
-    payerAddress: '0x0987654321098765432109876543210987654321',
-    recipientAddress: '0x1234567890123456789012345678901234567890',
-    amount: '500000000',
-    currency: {
-      decimals: 6,
-      value: 'USDC'
-    },
-    status: 'paid',
-    reason: 'Design services',
-    network: 'Ethereum',
-    type: 'single',
-    clientDetails: {
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      address: '789 Design St'
-    },
-    businessDetails: {
-      name: 'Design Co',
-      email: 'contact@designco.com',
-      address: '321 Creative Ave'
-    },
-    dueDate: '2024-03-20',
-    createdAt: '2024-03-01'
-  }
-];
-
 // Dummy payment transactions (invoices where user is the payer)
 export const dummyPayments: Invoice[] = [
   {
@@ -75,7 +16,7 @@ export const dummyPayments: Invoice[] = [
     },
     status: 'pending' as const,
     type: 'single',
-    payerAddress: "0xfC1628EED58440b7a587d7ff3dc54654D0850e2A", // User's address
+    payerAddress: "0x03E15BD74ee8AdBef0C58584fc6d2b859Cd053E6", // User's address
     recipientAddress: '0x1234567890123456789012345678901234567890',
     reason: 'Website Development Services - March 2024',
     network: 'Ethereum',
@@ -103,7 +44,7 @@ export const dummyPayments: Invoice[] = [
     },
     status: 'pending' as const,
     type: 'single',
-    payerAddress: "0xfC1628EED58440b7a587d7ff3dc54654D0850e2A", // User's address
+    payerAddress: "0x03E15BD74ee8AdBef0C58584fc6d2b859Cd053E6", // User's address
     recipientAddress: '0x9876543210987654321098765432109876543210',
     reason: 'Digital Marketing Campaign - Q1 2024',
     network: 'Ethereum',

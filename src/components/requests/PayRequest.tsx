@@ -1,220 +1,187 @@
-import { publicClientToProvider } from "./view/RequestProvider";
-import { walletClientToSigner } from "./view/RequestSigner";
-import { createRequestClient } from "./utils/requestUtil";
-import { hasSufficientFunds } from "@requestnetwork/payment-processor";
-import { approveErc20, hasErc20Approval } from "@requestnetwork/payment-processor"
-import { payRequest as processPayRequest } from "@requestnetwork/payment-processor";
-import { 
-  payEthFeeProxyRequest, 
-  prepareEthFeeProxyPaymentTransaction,
-  validateEthFeeProxyRequest 
-} from "@requestnetwork/payment-processor";
+'use client';
 
-export type RequestStatus = 'checking' | 'insufficient-funds' | 'needs-approval' | 'approving' | 'approved' | 'paying' | 'confirming' | 'completed' | 'error';
+import { WalletClient, Chain, PublicClient } from 'viem';
 
-export interface PaymentResult {
-  status: RequestStatus;
-  data?: any;
-  error?: string;
-  transactions?: {
-    data: string;
-    to: string;
-    value: {
-      type: string;
-      hex: string;
-    };
-  }[];
+export type RequestStatus = 
+  | 'checking'
+  | 'needs-approval'
+  | 'approving'
+  | 'paying'
+  | 'confirming'
+  | 'completed'
+  | 'error'
+  | 'insufficient-funds';
+
+interface PayRequestParams {
+  paymentReference: string;
+  publicClient: PublicClient;
+  walletClient: WalletClient;
+  account: `0x${string}`;
+  chain: Chain;
+  onStatusChange?: (status: RequestStatus) => void;
 }
 
-export async function handleERC20PayRequest(
-  requestId: string,
-  payerAddress: string,
-  publicClient: any,
-  walletClient: any,
-  onStatusChange?: (status: RequestStatus) => void
-): Promise<PaymentResult> {
-  const updateStatus = (status: RequestStatus) => {
-    if (onStatusChange) onStatusChange(status);
+interface PaymentCalldata {
+  transactions: {
+    data: string;
+    to: string;
+    value: bigint;
+  }[];
+  metadata: {
+    stepsRequired: number;
+    needsApproval: boolean;
+    approvalTransactionIndex: number;
   };
+}
 
+export async function handlePayRequest({
+  paymentReference,
+  publicClient,
+  walletClient,
+  account,
+  chain,
+  onStatusChange
+}: PayRequestParams) {
   try {
-    updateStatus('checking');
-    
-    const requestClient = createRequestClient()
-    const request = await requestClient.fromRequestId(requestId);
-    const requestData = request.getData();
-    const provider = publicClient ? publicClientToProvider(publicClient) : undefined;
-    const signer = walletClient ? walletClientToSigner(walletClient) : undefined;
-    
-    // Check for sufficient funds
-    const _hasSufficientFunds = await hasSufficientFunds({
-      request: requestData,
-      address: payerAddress as string,
-      providerOptions: {
-        provider: provider,
-      }
-    });
+    onStatusChange?.('checking');
 
-    if (!_hasSufficientFunds) {
-      updateStatus('insufficient-funds');
+    // Check if user is on the correct network
+    const currentChain = await publicClient.getChainId();
+    if (currentChain !== chain.id) {
       return {
-        status: 'insufficient-funds',
-        error: "Insufficient funds to complete this payment"
+        status: 'error' as const,
+        error: `Please switch to ${chain.name} network to make this payment`
       };
     }
 
-    // Check ERC20 approval
-    updateStatus('needs-approval');
-    const _hasErc20Approval = await hasErc20Approval(
-        requestData,
-        payerAddress,
-        provider
-    );
-
-
-    if (!_hasErc20Approval) {
-      try {
-        updateStatus('approving');
-        const approvalTx = await approveErc20(requestData, signer);
-        await approvalTx.wait(2);
-        updateStatus('approved');
-      } catch (error) {
-        updateStatus('error');
-        return {
-          status: 'error',
-          error: "Failed to approve ERC20 token transfer"
-        };
-      }
+    const apiKey = process.env.NEXT_PUBLIC_REQUEST_API_KEY;
+    if (!apiKey) {
+      throw new Error('REQUEST_API_KEY is not set in environment variables');
     }
 
-    // Process payment
-    updateStatus('paying');
-    const paymentTx = await processPayRequest(requestData, signer);
-    await paymentTx.wait(2);
-
-    // Wait for confirmation
-    updateStatus('confirming');
-    const confirmedRequestData = await request.waitForConfirmation();
-
-    // Verify the payment was successful
-    let updatedRequestData = confirmedRequestData;
-    while (updatedRequestData.balance?.balance != null && 
-           updatedRequestData.balance.balance < updatedRequestData.expectedAmount) {
-      updatedRequestData = await request.refresh();
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    }
-
-    updateStatus('completed');
-    return {
-      status: 'completed',
-      data: updatedRequestData
-    };
-
-  } catch (error) {
-    updateStatus('error');
-    console.log(error);
-    return {
-      status: 'error',
-      error: error instanceof Error ? error.message : "An unexpected error occurred"
-    };
-  }
-}
-
-export async function handlePayRequest(
-  paymentReference: string,
-  onStatusChange?: (status: RequestStatus) => void
-): Promise<PaymentResult> {
-  const updateStatus = (status: RequestStatus) => {
-    if (onStatusChange) onStatusChange(status);
-  };
-
-  try {
-    updateStatus('checking');
-
-    // Get payment calldata
+    // Get payment calldata from Request Network API
     const response = await fetch(`https://api.request.network/v1/request/${paymentReference}/pay`, {
       method: 'GET',
       headers: {
-        'x-api-key': process.env.NEXT_PUBLIC_REQUEST_API_KEY!,
+        'x-api-key': apiKey,
+        'Content-Type': 'application/json'
       }
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorData = await response.json().catch(() => null);
+      throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);
     }
 
-    const data = await response.json();
+    const paymentData: PaymentCalldata = await response.json();
+
+    // Check if approval is needed
+    if (paymentData.metadata.needsApproval) {
+      onStatusChange?.('needs-approval');
+      
+      // Get the approval transaction
+      const approvalTx = paymentData.transactions[paymentData.metadata.approvalTransactionIndex];
+      
+      try {
+        // Send approval transaction
+        onStatusChange?.('approving');
+        const approvalHash = await walletClient.sendTransaction({
+          account,
+          chain,
+          to: approvalTx.to as `0x${string}`,
+          data: approvalTx.data as `0x${string}`,
+          value: approvalTx.value
+        });
+
+        // Wait for approval confirmation
+        await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+      } catch (error: any) {
+        if (error.name === 'UserRejectedRequestError' || 
+            error.message?.includes('User denied transaction signature') ||
+            error.message?.includes('User rejected the request')) {
+          return {
+            status: 'error' as const,
+            error: 'Payment cancelled by user'
+          };
+        }
+        if (error.message?.includes('does not match the target chain')) {
+          return {
+            status: 'error' as const,
+            error: `Please switch to ${chain.name} network to make this payment`
+          };
+        }
+        throw error;
+      }
+    }
+
+    try {
+      // Send payment transaction
+      onStatusChange?.('paying');
+      const paymentTx = paymentData.transactions[paymentData.metadata.stepsRequired - 1];
+      const paymentHash = await walletClient.sendTransaction({
+        account,
+        chain,
+        to: paymentTx.to as `0x${string}`,
+        data: paymentTx.data as `0x${string}`,
+        value: paymentTx.value
+      });
+
+      // Wait for payment confirmation
+      onStatusChange?.('confirming');
+      await publicClient.waitForTransactionReceipt({ hash: paymentHash });
+    } catch (error: any) {
+      if (error.name === 'UserRejectedRequestError' || 
+          error.message?.includes('User denied transaction signature') ||
+          error.message?.includes('User rejected the request')) {
+        return {
+          status: 'error' as const,
+          error: 'Payment cancelled by user'
+        };
+      }
+      if (error.message?.includes('does not match the target chain')) {
+        return {
+          status: 'error' as const,
+          error: `Please switch to ${chain.name} network to make this payment`
+        };
+      }
+      throw error;
+    }
+
+    // Update invoice status in database
+    const updateResponse = await fetch(`/api/invoices/${paymentReference}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: 'paid',
+        paidAt: new Date().toISOString()
+      }),
+    });
+
+    if (!updateResponse.ok) {
+      console.error('Failed to update invoice status in database');
+    }
+
+    onStatusChange?.('completed');
+    return { status: 'completed' as const };
+
+  } catch (error: any) {
+    console.error('Error in handlePayRequest:', error);
+    onStatusChange?.('error');
     
-    // Check if we need approval for ERC20 tokens
-    if (data.metadata.needsApproval) {
-      updateStatus('needs-approval');
-      const approvalTx = data.transactions[data.metadata.approvalTransactionIndex];
-      return {
-        status: 'needs-approval',
-        transactions: [approvalTx]
+    // Check for specific error conditions
+    if (error.message?.includes('insufficient funds')) {
+      onStatusChange?.('insufficient-funds');
+      return { 
+        status: 'insufficient-funds' as const,
+        error: 'Insufficient funds to complete the payment'
       };
     }
 
-    // Return payment transaction
-    updateStatus('paying');
-    return {
-      status: 'paying',
-      transactions: data.transactions
-    };
-
-  } catch (error) {
-    updateStatus('error');
-    console.error(error);
-    return {
-      status: 'error',
-      error: error instanceof Error ? error.message : "An unexpected error occurred"
+    return { 
+      status: 'error' as const,
+      error: error.message || 'Failed to process payment'
     };
   }
 }
-
-export async function checkPaymentStatus(
-  paymentReference: string,
-  onStatusChange?: (status: RequestStatus) => void
-): Promise<PaymentResult> {
-  const updateStatus = (status: RequestStatus) => {
-    if (onStatusChange) onStatusChange(status);
-  };
-
-  try {
-    updateStatus('checking');
-
-    const response = await fetch(`https://api.request.network/v1/request/${paymentReference}`, {
-      method: 'GET',
-      headers: {
-        'x-api-key': process.env.NEXT_PUBLIC_REQUEST_API_KEY!',
-      }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    
-    if (data.hasBeenPaid) {
-      updateStatus('completed');
-      return {
-        status: 'completed',
-        data
-      };
-    }
-
-    return {
-      status: 'paying',
-      data
-    };
-
-  } catch (error) {
-    updateStatus('error');
-    console.error(error);
-    return {
-      status: 'error',
-      error: error instanceof Error ? error.message : "An unexpected error occurred"
-    };
-  }
-} 

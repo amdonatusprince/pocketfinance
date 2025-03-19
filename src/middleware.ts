@@ -9,7 +9,6 @@ export const config = {
     '/transactions',
     '/tokens',
     '/account',
-    '/portfolio',
   ]
 };
 
@@ -18,8 +17,8 @@ export function middleware(request: NextRequest) {
   const isAuthenticated = request.cookies.has('privy-token');
 
   // Redirect to chats if authenticated and at root/dashboard
-  if (isAuthenticated && (pathname === '/' || pathname === '/dashboard')) {
-    return NextResponse.redirect(new URL('/transactions', request.url));
+  if (isAuthenticated && (pathname === '/')) {
+    return NextResponse.redirect(new URL('/invoices', request.url));
   }
 
   // Redirect to home if not authenticated and trying to access protected routes
