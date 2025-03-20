@@ -70,14 +70,16 @@ export async function createBatchPayment({
             value: payerAddress
           },
           timestamp: Date.now(),
-          extensions: {
-            [Types.Extension.PAYMENT_NETWORK_ID.ERC20_FEE_PROXY_CONTRACT]: {
+          paymentNetwork: {
+            id: Types.Extension.PAYMENT_NETWORK_ID.ERC20_FEE_PROXY_CONTRACT,
+            parameters: {
+              paymentNetworkName: 'sepolia',
               paymentAddress: recipient.address,
-              feeAddress: "0x85CA836d014dA00537FdC04dFe8b07aeDc20FB69",
+              feeAddress: "0x85CA836d014dA00537FdC04dFe8b07aeDc20FB69",  
               feeAmount,
-              network: 'sepolia' as CurrencyTypes.EvmChainName
-            }
-          }
+            },
+          },
+
         },
         signer: {
           type: Types.Identity.TYPE.ETHEREUM_ADDRESS,
