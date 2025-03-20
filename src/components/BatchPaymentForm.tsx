@@ -1,6 +1,9 @@
 import { useState } from 'react';
-import { X, Upload, Plus, Pencil, Trash2 } from 'lucide-react';
+import { Upload, Plus, Pencil, Trash2 } from 'lucide-react';
 import Image from 'next/image';
+import { useWalletClient, usePublicClient } from 'wagmi';
+import { createBatchPayment } from './requests/BatchPayment';
+import { toast } from 'react-hot-toast';
 
 interface Recipient {
   address: string;
@@ -11,9 +14,10 @@ interface Recipient {
 interface BatchPaymentFormProps {
   onSubmit: (recipients: Recipient[]) => void;
   onCancel: () => void;
+  onSuccess: () => void;
 }
 
-export default function BatchPaymentForm({ onSubmit, onCancel }: BatchPaymentFormProps) {
+export default function BatchPaymentForm({ onSubmit, onCancel, onSuccess }: BatchPaymentFormProps) {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [currentRecipient, setCurrentRecipient] = useState<Recipient>({
@@ -22,6 +26,53 @@ export default function BatchPaymentForm({ onSubmit, onCancel }: BatchPaymentFor
     reason: ''
   });
   const [csvError, setCsvError] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
+
+  const handleProcessPayment = async () => {
+    if (!walletClient || !publicClient) {
+      toast.error('Please connect your wallet to make payments');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // Log detailed recipient data
+      console.log('Recipients data:', recipients.map(r => ({
+        address: r.address,
+        amount: r.amount,
+        reason: r.reason,
+        formattedAmount: (Number(r.amount) * Math.pow(10, 6)).toString() // Convert to USDC decimals
+      })));
+
+      await createBatchPayment({
+        walletClient,
+        payerAddress: walletClient.account.address,
+        recipients: recipients.map(r => ({
+          ...r,
+          amount: (Number(r.amount) * Math.pow(10, 6)).toString() // Convert to USDC decimals
+        })),
+        onStatusChange: (status) => {
+          console.log('Payment status:', status);
+          toast.loading(status, { id: 'batch-payment' });
+        },
+        onEmployeeProgress: (completed, total) => {
+          console.log(`Progress: ${completed}/${total}`);
+          toast.loading(`Processing payment ${completed}/${total}`, { id: 'batch-payment' });
+        }
+      });
+
+      toast.success('Batch payment completed successfully!', { id: 'batch-payment' });
+      onSuccess();
+      onSubmit(recipients);
+    } catch (error) {
+      console.error('Batch payment error:', error);
+      toast.error('Failed to process batch payment', { id: 'batch-payment' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const handleAddRecipient = () => {
     if (editingIndex !== null) {
@@ -222,15 +273,24 @@ export default function BatchPaymentForm({ onSubmit, onCancel }: BatchPaymentFor
           <div className="mt-6 flex justify-end gap-4">
             <button
               onClick={onCancel}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+              disabled={isProcessing}
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={() => onSubmit(recipients)}
-              className="px-4 py-2 bg-[#007BFF] text-white rounded-lg hover:bg-[#0056b3] transition-colors"
+              onClick={handleProcessPayment}
+              disabled={isProcessing}
+              className="px-4 py-2 bg-[#007BFF] text-white rounded-lg hover:bg-[#0056b3] transition-colors disabled:opacity-50 flex items-center gap-2"
             >
-              Process Batch Payment
+              {isProcessing ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Process Batch Payment'
+              )}
             </button>
           </div>
         </div>

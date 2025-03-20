@@ -1,68 +1,69 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog } from '@headlessui/react';
-import { dummyPayments } from '@/lib/dummy-data';
 import { formatDistanceToNow } from 'date-fns';
-import { CreditCard, CheckSquare, X, Plus, Download, Clock, AlertCircle, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { X, Plus, Download, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import Image from 'next/image';
 import BatchPaymentForm from '@/components/BatchPaymentForm';
-import { Invoice } from '@/types/invoice';
-
-interface Recipient {
-  address: string;
-  amount: string;
-  reason?: string;
-}
+import { BatchPayment, Recipient } from '@/types/batchPayment';
 
 export default function PaymentsPage() {
   const [isBatchPaymentOpen, setIsBatchPaymentOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
-  const [selectedPayment, setSelectedPayment] = useState<Invoice | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<BatchPayment | null>(null);
+  const [payments, setPayments] = useState<BatchPayment[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
-  console.log(user);
+  // Fetch payments from database
+  const fetchPayments = async () => {
+    try {
+      const response = await fetch('/api/batch-payments');
+      if (!response.ok) throw new Error('Failed to fetch payments');
+      const data = await response.json();
+      setPayments(data.payments);
+    } catch (error) {
+      console.error('Error fetching payments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPayments();
+  }, []);
 
   // Filter payments where current user is the payer
-  const payments = dummyPayments.filter(
+  const userPayments = payments.filter(
     payment => payment.payerAddress === (user?.wallet?.address)
   );
 
   // Calculate stats
-  const totalPaid = payments
+  const totalPayments = userPayments.length;
+  const paidPayments = userPayments.filter(payment => payment.status === 'paid').length;
+
+  // Calculate total amounts
+  const totalAmount = userPayments.reduce((sum, payment) => sum + Number(payment.totalAmount), 0);
+  const paidAmount = userPayments
     .filter(payment => payment.status === 'paid')
-    .reduce((sum, payment) => sum + Number(payment.amount) / Math.pow(10, payment.currency.decimals), 0);
-
-  const pendingAmount = payments
-    .filter(payment => payment.status === 'pending')
-    .reduce((sum, payment) => sum + Number(payment.amount) / Math.pow(10, payment.currency.decimals), 0);
-
-  const thisMonthPayments = payments
-    .filter(payment => new Date(payment.date).getMonth() === new Date().getMonth())
-    .reduce((sum, payment) => sum + Number(payment.amount) / Math.pow(10, payment.currency.decimals), 0);
-
-  const batchPayments = payments
-    .filter(payment => payment.type === 'batch')
-    .reduce((sum, payment) => sum + Number(payment.amount) / Math.pow(10, payment.currency.decimals), 0);
+    .reduce((sum, payment) => sum + Number(payment.totalAmount), 0);
 
   const handleBatchPayment = (recipients: Recipient[]) => {
     console.log('Processing batch payment:', recipients);
     setIsBatchPaymentOpen(false);
+    fetchPayments(); // Refresh the payments data
   };
 
   const downloadTemplate = () => {
     window.open('/batch-payment-template.csv', '_blank');
   };
 
-  const getStatusStyle = (status: 'paid' | 'pending' | 'cancelled') => {
+  const getStatusStyle = (status: 'paid') => {
     switch (status) {
       case 'paid':
         return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400';
       default:
         return 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400';
     }
@@ -71,37 +72,33 @@ export default function PaymentsPage() {
   // Stats cards data
   const stats = [
     {
-      title: 'Total Paid',
-      amount: totalPaid,
-      transactions: payments.filter(p => p.status === 'paid').length,
+      title: 'Total Payments',
+      value: totalPayments,
       icon: <ArrowUpRight className="w-4 h-4 text-green-500" />,
       bgColor: 'bg-green-50 dark:bg-green-900/20',
       textColor: 'text-green-600 dark:text-green-400'
     },
     {
-      title: 'Pending Payments',
-      amount: pendingAmount,
-      transactions: payments.filter(p => p.status === 'pending').length,
-      icon: <Clock className="w-4 h-4 text-yellow-500" />,
-      bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
-      textColor: 'text-yellow-600 dark:text-yellow-400'
-    },
-    {
-      title: 'This Month',
-      amount: thisMonthPayments,
-      transactions: payments.filter(p => new Date(p.date).getMonth() === new Date().getMonth()).length,
+      title: 'Paid Payments',
+      value: paidPayments,
       icon: <ArrowDownRight className="w-4 h-4 text-blue-500" />,
       bgColor: 'bg-blue-50 dark:bg-blue-900/20',
       textColor: 'text-blue-600 dark:text-blue-400'
     },
     {
-      title: 'Batch Payments',
-      amount: batchPayments,
-      transactions: payments.filter(p => p.type === 'batch').length,
-      icon: <CreditCard className="w-4 h-4 text-purple-500" />,
+      title: 'Total Amount',
+      amount: totalAmount,
+      icon: <ArrowUpRight className="w-4 h-4 text-purple-500" />,
       bgColor: 'bg-purple-50 dark:bg-purple-900/20',
       textColor: 'text-purple-600 dark:text-purple-400'
     },
+    {
+      title: 'Paid Amount',
+      amount: paidAmount,
+      icon: <ArrowDownRight className="w-4 h-4 text-indigo-500" />,
+      bgColor: 'bg-indigo-50 dark:bg-indigo-900/20',
+      textColor: 'text-indigo-600 dark:text-indigo-400'
+    }
   ];
 
   return (
@@ -116,23 +113,25 @@ export default function PaymentsPage() {
             <div className="flex justify-between items-start">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{stat.title}</p>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <div className="flex items-center">
-                    <Image
-                      src="/usd-coin.svg"
-                      alt="USDC"
-                      width={35}
-                      height={35}
-                      className="mr-1"
-                    />
-                    <p className={`text-xl font-semibold ${stat.textColor}`}>
-                      {stat.amount.toFixed(2)}
+                <div className="mt-2 flex items-center justify-center">
+                  {stat.value !== undefined ? (
+                    <p className={`text-2xl font-semibold ${stat.textColor}`}>
+                      {stat.value}
                     </p>
-                  </div>
+                  ) : stat.amount !== undefined && (
+                    <div className="flex items-center gap-1">
+                      <Image
+                        src="/usd-coin.svg"
+                        alt="USDC"
+                        width={20}
+                        height={20}
+                      />
+                      <span className="text-2xl font-semibold text-gray-900 dark:text-white">
+                        {(stat.amount / Math.pow(10, 6)).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
-                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                  {stat.transactions} transactions
-                </p>
               </div>
               <div className="p-2 rounded-full bg-white dark:bg-gray-800 shrink-0">
                 {stat.icon}
@@ -140,7 +139,7 @@ export default function PaymentsPage() {
             </div>
           </div>
         ))}
-        </div>
+      </div>
 
       {/* Actions Bar */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 mb-6">
@@ -170,15 +169,15 @@ export default function PaymentsPage() {
             <thead className="bg-gray-50 dark:bg-gray-900/50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payment ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Recipient</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Request ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Recipient</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Reason</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {payments.map((payment) => (
+              {userPayments.map((payment) => (
                 <tr
                   key={payment.id}
                   onClick={() => {
@@ -194,19 +193,24 @@ export default function PaymentsPage() {
                     {payment.id}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {payment.type || 'single'}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {payment.recipientAddress.slice(0, 6)}...{payment.recipientAddress.slice(-4)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     <div className="flex items-center gap-1">
-                      <Image src="/usd-coin.svg" alt="USDC" width={20} height={20} />
-                      {(Number(payment.amount) / Math.pow(10, payment.currency.decimals)).toFixed(2)}
+                      <Image
+                        src="/usd-coin.svg"
+                        alt="USDC"
+                        width={20}
+                        height={20}
+                      />
+                      {(Number(payment.totalAmount) / Math.pow(10, payment.currency.decimals)).toLocaleString()}
                     </div>
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {payment.recipients[0]?.address.slice(0, 6)}...{payment.recipients[0]?.address.slice(-4)}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                    {payment.recipients[0]?.reason || 'N/A'}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusStyle(payment.status)}`}>
+                    <span className={`px-2 py-1 text-xs rounded-full ${getStatusStyle(payment.status as 'paid')}`}>
                       {payment.status.toUpperCase()}
                     </span>
                   </td>
@@ -234,13 +238,13 @@ export default function PaymentsPage() {
                   <h3 className="text-sm font-medium opacity-90">Amount</h3>
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-xl sm:text-3xl font-bold">
-                      {selectedPayment ? (Number(selectedPayment.amount) / Math.pow(10, selectedPayment.currency.decimals)).toFixed(2) : '0'} USDC
+                      {selectedPayment ? (Number(selectedPayment.totalAmount) / Math.pow(10, selectedPayment.currency.decimals)).toLocaleString() : '0'} USDC
                     </span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-4">
                   <div className="text-right">
-                    <span className={`inline-block px-2 py-1 sm:px-3 text-xs sm:text-sm rounded-full font-medium ${getStatusStyle(selectedPayment?.status || 'pending')}`}>
+                    <span className={`inline-block px-2 py-1 sm:px-3 text-xs sm:text-sm rounded-full font-medium ${getStatusStyle(selectedPayment?.status as 'paid')}`}>
                       {selectedPayment?.status?.toUpperCase()}
                     </span>
                     <p className="text-xs sm:text-sm mt-1 opacity-90">
@@ -270,13 +274,7 @@ export default function PaymentsPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-500 dark:text-gray-400">Network</span>
-                      <span className="text-gray-900 dark:text-white text-right">{selectedPayment?.network}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Due Date</span>
-                      <span className="text-gray-900 dark:text-white text-right">
-                        {selectedPayment?.dueDate ? new Date(selectedPayment.dueDate).toLocaleDateString() : 'N/A'}
-                      </span>
+                      <span className="text-gray-900 dark:text-white text-right">Sepolia</span>
                     </div>
                   </div>
                 </div>
@@ -284,7 +282,7 @@ export default function PaymentsPage() {
                 <div>
                   <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">Payment Purpose</h3>
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
-                    <p className="text-sm text-gray-900 dark:text-white break-words">{selectedPayment?.reason || 'N/A'}</p>
+                    <p className="text-sm text-gray-900 dark:text-white break-words">{selectedPayment?.recipients[0]?.reason || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -302,47 +300,8 @@ export default function PaymentsPage() {
                   <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3">
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">To</p>
                     <p className="text-sm font-mono text-gray-900 dark:text-white break-all">
-                      {selectedPayment?.recipientAddress}
+                      {selectedPayment?.recipients.map(r => r.address).join(', ')}
                     </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Participant Details */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">Client Details</h3>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Name</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.clientDetails.name}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Email</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.clientDetails.email}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Address</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.clientDetails.address}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2 sm:mb-3">Business Details</h3>
-                  <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Name</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.businessDetails.name}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Email</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.businessDetails.email}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Address</span>
-                      <span className="text-gray-900 dark:text-white break-words text-right ml-4">{selectedPayment?.businessDetails.address}</span>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -383,6 +342,7 @@ export default function PaymentsPage() {
               <BatchPaymentForm
                 onSubmit={handleBatchPayment}
                 onCancel={() => setIsBatchPaymentOpen(false)}
+                onSuccess={() => setIsBatchPaymentOpen(false)}
               />
             </div>
           </div>
