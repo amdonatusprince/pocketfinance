@@ -127,6 +127,78 @@ export async function createRequest({
       throw new Error(errorData.error || 'Failed to store invoice in database');
     }
 
+    // Send email notifications
+    // 1. Notify business
+    await fetch('/api/notification/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: contentData.businessDetails.email,
+        type: 'invoice_created_business',
+        amount: expectedAmount,
+        dueDate,
+        requestId: data.requestID,
+        payerAddress,
+        recipientAddress,
+        businessDetails: contentData.businessDetails,
+        clientDetails: contentData.clientDetails,
+        reason
+      }),
+    });
+
+    // 2. Notify client
+    await fetch('/api/notification/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        to: contentData.clientDetails.email,
+        type: 'invoice_created_client',
+        amount: expectedAmount,
+        dueDate,
+        requestId: data.requestID,
+        payerAddress,
+        recipientAddress,
+        businessDetails: contentData.businessDetails,
+        clientDetails: contentData.clientDetails,
+        reason
+      }),
+    });
+
+    // 3. Schedule reminder email for a day before due date
+    if (dueDate) {
+      const reminderDate = new Date(dueDate);
+      reminderDate.setDate(reminderDate.getDate() - 1);
+      const now = new Date();
+      
+      // Only schedule if the reminder date is in the future
+      if (reminderDate > now) {
+        setTimeout(async () => {
+          await fetch('/api/notification/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              to: contentData.clientDetails.email,
+              type: 'due_date_reminder',
+              amount: expectedAmount,
+              dueDate,
+              requestId: data.requestID,
+              payerAddress,
+              recipientAddress,
+              businessDetails: contentData.businessDetails,
+              clientDetails: contentData.clientDetails,
+              reason
+            }),
+          });
+        }, reminderDate.getTime() - now.getTime());
+      }
+    }
+
     onStatusChange?.(REQUEST_STATUS.REQUEST_CONFIRMED);
     return { requestData: data };
 

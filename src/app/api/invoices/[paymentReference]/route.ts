@@ -2,6 +2,36 @@ import { NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/db/mongodb';
 import { InvoiceModel } from '@/lib/db/models/invoice';
 
+export async function GET(
+  request: Request,
+  { params }: { params: { paymentReference: string } }
+) {
+  try {
+    const { paymentReference } = await params;
+
+    // Connect to database
+    await connectToDatabase();
+    
+    // Find the invoice
+    const invoice = await InvoiceModel.findOne({ paymentReference });
+
+    if (!invoice) {
+      return NextResponse.json(
+        { error: 'Invoice not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(invoice);
+  } catch (error) {
+    console.error('Error fetching invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch invoice' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: { paymentReference: string } }

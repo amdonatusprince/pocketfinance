@@ -163,6 +163,76 @@ export async function handlePayRequest({
       console.error('Failed to update invoice status in database');
     }
 
+    try {
+      // Get invoice details for notifications
+      const invoiceResponse = await fetch(`/api/invoices/${paymentReference}`);
+      if (!invoiceResponse.ok) {
+        throw new Error('Failed to fetch invoice details');
+      }
+
+      const invoice = await invoiceResponse.json();
+
+      if (!invoice.businessDetails?.email || !invoice.clientDetails?.email) {
+        throw new Error('Missing email details in invoice');
+      }
+
+      // Send payment received notification to recipient
+      const recipientResponse = await fetch('/api/notification/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: invoice.businessDetails.email,
+          type: 'payment_received',
+          amount: invoice.amount,
+          dueDate: invoice.dueDate,
+          requestId: invoice.requestId,
+          payerAddress: account,
+          recipientAddress: invoice.recipientAddress,
+          businessDetails: invoice.businessDetails,
+          clientDetails: invoice.clientDetails,
+          reason: invoice.reason
+        }),
+      });
+
+      if (!recipientResponse.ok) {
+        const error = await recipientResponse.json();
+        throw new Error(`Failed to send recipient notification: ${error.message}`);
+      }
+
+      // Send payment sent notification to payer
+      const payerResponse = await fetch('/api/notification/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: invoice.clientDetails.email,
+          type: 'payment_sent',
+          amount: invoice.amount,
+          dueDate: invoice.dueDate,
+          requestId: invoice.requestId,
+          payerAddress: account,
+          recipientAddress: invoice.recipientAddress,
+          businessDetails: invoice.businessDetails,
+          clientDetails: invoice.clientDetails,
+          reason: invoice.reason
+        }),
+      });
+
+      if (!payerResponse.ok) {
+        const error = await payerResponse.json();
+        throw new Error(`Failed to send payer notification: ${error.message}`);
+      }
+
+      console.log('Payment notifications sent successfully');
+    } catch (error) {
+      console.error('Error sending payment notifications:', error);
+      // Don't throw the error as we don't want to fail the whole payment process
+      // just because notifications failed
+    }
+
     onStatusChange?.('completed');
     return { status: 'completed' as const };
 
