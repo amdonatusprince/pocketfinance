@@ -3,7 +3,8 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
 import { WagmiConfigProvider } from "@/components/providers/WagmiProvider";
-import { AuthProvider } from "@/components/providers/AuthProvider"
+import { AuthProvider } from "@/components/providers/AuthProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,8 +23,10 @@ export default function RootLayout({
       <body className={inter.className}>
         <WagmiConfigProvider>
           <AuthProvider>
-          {children}
-          <Toaster position="top-right" />
+            <ThemeProvider>
+              {children}
+              <Toaster position="top-right" />
+            </ThemeProvider>
           </AuthProvider>
         </WagmiConfigProvider>
       </body>
