@@ -45,6 +45,7 @@ export default function InvoicesPage() {
     }
     
     setPaymentStatus('checking');
+    console.log('handlePayInvoice', invoice);
     try {
       const result = await handlePayRequest({
         paymentReference: invoice.paymentReference,
@@ -384,7 +385,7 @@ export default function InvoicesPage() {
             </div>
 
             <InvoiceForm
-              recipientAddress={user?.wallet?.address!}
+              recipientAddress={user?.wallet?.address ?? ''}
               onSuccess={() => {
                 setIsCreateModalOpen(false);
                 setCreateStatus(REQUEST_STATUS.AWAITING_INPUT);
@@ -419,9 +420,9 @@ export default function InvoicesPage() {
                 <div className="flex items-center gap-2 sm:gap-4">
                   <div className="text-right">
                     <span
-                      className={`inline-block px-2 py-1 sm:px-3 text-xs sm:text-sm rounded-full font-medium ${getStatusStyle(getInvoiceStatus(selectedInvoice || {} as Transaction))}`}
+                      className={`inline-block px-2 py-1 sm:px-3 text-xs sm:text-sm rounded-full font-medium ${getStatusStyle(getInvoiceStatus(selectedInvoice ?? {} as Transaction))}`}
                     >
-                      {getInvoiceStatus(selectedInvoice || {} as Transaction).toUpperCase()}
+                      {getInvoiceStatus(selectedInvoice ?? {} as Transaction).toUpperCase()}
                     </span>
                     <p className="text-xs sm:text-sm mt-1 opacity-90">
                       {selectedInvoice?.createdAt

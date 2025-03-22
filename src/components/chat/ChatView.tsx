@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import { useRef, useEffect } from 'react';

@@ -1,16 +1,15 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
-import { AuthProvider } from "@/components/providers/AuthProvider";
-import { ThemeProvider } from "@/components/providers/ThemeProvider";
-import { WagmiConfigProvider } from "@/components/providers/WagmiProvider";
 import "./globals.css";
 import { Toaster } from 'react-hot-toast';
+import { WagmiConfigProvider } from "@/components/providers/WagmiProvider";
+import { AuthProvider } from "@/components/providers/AuthProvider"
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Pocket Finance",
-  description: "One agent, all things payment",
+  description: "Manage your finances with ease",
 };
 
 export default function RootLayout({
@@ -19,16 +18,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className={inter.className}>
         <WagmiConfigProvider>
           <AuthProvider>
-            <ThemeProvider>
-              {children}
-            </ThemeProvider>
+          {children}
+          <Toaster position="top-right" />
           </AuthProvider>
         </WagmiConfigProvider>
-        <Toaster />
       </body>
     </html>
   );

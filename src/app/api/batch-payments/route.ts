@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/db/mongodb';
-import { BatchPaymentModel } from '@/lib/db/models/batchPayment';
+import clientPromise from '@/lib/db/mongodb';
 
 export async function POST(request: Request) {
   try {
@@ -8,24 +7,24 @@ export async function POST(request: Request) {
     const { transactionHash, payerAddress, recipients, status, paidAt } = body;
     
     // Connect to the database
-    const connection = await connectToDatabase();
-    if (!connection) {
-      throw new Error('Failed to establish database connection');
-    }
+    const client = await clientPromise;
+    const db = client.db();
+    const collection = db.collection('batchPayments');
     
-    // Create a new batch payment document
-    const batchPayment = new BatchPaymentModel({
+    // Insert the batch payment
+    const result = await collection.insertOne({
       transactionHash,
       payerAddress,
       recipients,
       status,
-      paidAt: new Date(paidAt)
+      paidAt: new Date(paidAt),
+      createdAt: new Date()
     });
     
-    // Save the batch payment
-    await batchPayment.save();
-    
-    return NextResponse.json({ success: true, batchPayment }, { status: 201 });
+    return NextResponse.json({ 
+      success: true, 
+      batchPayment: { _id: result.insertedId, ...body } 
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating batch payment:', error);
     return NextResponse.json(
@@ -41,11 +40,13 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    await connectToDatabase();
+    const client = await clientPromise;
+    const db = client.db();
+    const collection = db.collection('batchPayments');
     
-    const payments = await BatchPaymentModel.find()
+    const payments = await collection.find()
       .sort({ createdAt: -1 })
-      .lean();
+      .toArray();
 
     return NextResponse.json({ payments });
   } catch (error) {

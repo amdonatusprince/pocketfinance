@@ -1,13 +1,45 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
-import { useLinkAccount } from '@privy-io/react-auth';
+import { usePrivy, useLinkAccount } from '@privy-io/react-auth';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { Mail, Phone } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
+interface LinkedAccount {
+  type: 'twitter_oauth' | 'google_oauth' | 'email' | 'phone' | 'farcaster' | 'wallet';
+  address?: string;
+  email?: string;
+  phoneNumber?: string;
+}
+
 export default function AccountPage() {
-  const { user } = useAuth();
+  const { user, ready, authenticated } = usePrivy();
+  const router = useRouter();
+
+  const handleLinkSuccess = () => {
+    toast.success('Account connected successfully!', {
+      position: 'top-right',
+      style: {
+        background: '#222831',
+        color: '#fff',
+        borderRadius: '8px',
+      },
+    });
+  };
+
+  const handleLinkError = (error: string) => {
+    toast.error(error || 'Failed to connect account', {
+      position: 'top-right',
+      style: {
+        background: '#222831',
+        color: '#fff',
+        borderRadius: '8px',
+      },
+    });
+  };
+
   const { 
     linkTwitter,
     linkGoogle,
@@ -15,30 +47,22 @@ export default function AccountPage() {
     linkPhone,
     linkFarcaster
   } = useLinkAccount({
-    onSuccess: () => {
-      toast.success('Account connected successfully!', {
-        position: 'top-right',
-        style: {
-          background: '#222831',
-          color: '#fff',
-          borderRadius: '8px',
-        },
-      });
-    },
-    onError: (error) => {
-      toast.error(error || 'Failed to connect account', {
-        position: 'top-right',
-        style: {
-          background: '#222831',
-          color: '#fff',
-          borderRadius: '8px',
-        },
-      });
-    }
+    onSuccess: handleLinkSuccess,
+    onError: handleLinkError
   });
 
+  useEffect(() => {
+    if (ready && !authenticated) {
+      router.push('/');
+    }
+  }, [ready, authenticated, router]);
+
+  if (!ready || !authenticated) {
+    return null;
+  }
+
   const connectedWallets = user?.wallet?.address || '';
-  const connectedAccounts = user?.linkedAccounts || [];
+  const linkedAccounts = (user?.linkedAccounts || []) as LinkedAccount[];
 
   return (
     <div className="max-w-2xl mx-auto p-6">
@@ -52,7 +76,9 @@ export default function AccountPage() {
           <div>
             <h3 className="text-sm font-bold text-gray-500 dark:text-gray-300 mb-2">User Info</h3>
             <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <p className="font-mono text-sm font-bold break-all dark:text-white">Joined on {user?.createdAt?.toLocaleDateString()}</p>
+              <p className="font-mono text-sm font-bold break-all dark:text-white">
+                Joined on {new Date().toLocaleDateString()}
+              </p>
             </div>
           </div>
 
@@ -92,11 +118,11 @@ export default function AccountPage() {
               <div>
                 <p className="font-bold dark:text-gray-300">X (formerly Twitter)</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {connectedAccounts.some(account => account.type === 'twitter_oauth') ? 'Connected' : 'Not Connected'}
+                  {linkedAccounts.some((account: LinkedAccount) => account.type === 'twitter_oauth') ? 'Connected' : 'Not Connected'}
                 </p>
               </div>
             </div>
-            {!connectedAccounts.some(account => account.type === 'twitter_oauth') && (
+            {!linkedAccounts.some((account: LinkedAccount) => account.type === 'twitter_oauth') && (
               <button 
                 onClick={() => linkTwitter()}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 dark:text-white hover:border-[#007BFF] hover:text-[#007BFF] transition-colors"
@@ -118,11 +144,11 @@ export default function AccountPage() {
               <div>
                 <p className="font-bold dark:text-gray-300">Google</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {connectedAccounts.some(account => account.type === 'google_oauth') ? 'Connected' : 'Not Connected'}
+                  {linkedAccounts.some((account: LinkedAccount) => account.type === 'google_oauth') ? 'Connected' : 'Not Connected'}
                 </p>
               </div>
             </div>
-            {!connectedAccounts.some(account => account.type === 'google_oauth') && (
+            {!linkedAccounts.some((account: LinkedAccount) => account.type === 'google_oauth') && (
               <button 
                 onClick={() => linkGoogle()}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 dark:text-white hover:border-[#007BFF] hover:text-[#007BFF] transition-colors"
@@ -139,11 +165,11 @@ export default function AccountPage() {
               <div>
                 <p className="font-bold dark:text-gray-300">Email</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {connectedAccounts.some(account => account.type === 'email') ? 'Connected' : 'Not Connected'}
+                  {linkedAccounts.some((account: LinkedAccount) => account.type === 'email') ? 'Connected' : 'Not Connected'}
                 </p>
               </div>
             </div>
-            {!connectedAccounts.some(account => account.type === 'email') && (
+            {!linkedAccounts.some((account: LinkedAccount) => account.type === 'email') && (
               <button 
                 onClick={() => linkEmail()}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 dark:text-white hover:border-[#007BFF] hover:text-[#007BFF] transition-colors"
@@ -160,11 +186,11 @@ export default function AccountPage() {
               <div>
                 <p className="font-bold dark:text-gray-300">Phone</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {connectedAccounts.some(account => account.type === 'phone') ? 'Connected' : 'Not Connected'}
+                  {linkedAccounts.some((account: LinkedAccount) => account.type === 'phone') ? 'Connected' : 'Not Connected'}
                 </p>
               </div>
             </div>
-            {!connectedAccounts.some(account => account.type === 'phone') && (
+            {!linkedAccounts.some((account: LinkedAccount) => account.type === 'phone') && (
               <button 
                 onClick={() => linkPhone()}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 dark:text-white hover:border-[#007BFF] hover:text-[#007BFF] transition-colors"
@@ -187,11 +213,11 @@ export default function AccountPage() {
               <div>
                 <p className="font-bold dark:text-gray-300">Farcaster</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {connectedAccounts.some(account => account.type === 'farcaster') ? 'Connected' : 'Not Connected'}
+                  {linkedAccounts.some((account: LinkedAccount) => account.type === 'farcaster') ? 'Connected' : 'Not Connected'}
                 </p>
               </div>
             </div>
-            {!connectedAccounts.some(account => account.type === 'farcaster') && (
+            {!linkedAccounts.some((account: LinkedAccount) => account.type === 'farcaster') && (
               <button 
                 onClick={() => linkFarcaster()}
                 className="px-4 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-600 dark:text-white hover:border-[#007BFF] hover:text-[#007BFF] transition-colors"

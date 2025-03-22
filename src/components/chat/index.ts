@@ -1,6 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { settings } from "@elizaos/core";
 import readline from "readline";
 import { Character } from "@elizaos/core";

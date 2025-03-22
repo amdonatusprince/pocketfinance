@@ -148,7 +148,7 @@ export async function handlePayRequest({
     }
 
     // Update invoice status in database
-    const updateResponse = await fetch(`/api/invoices/${paymentReference}`, {
+    const updateResponse = await fetch(`/api/invoices?paymentReference=${paymentReference}`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -165,7 +165,7 @@ export async function handlePayRequest({
 
     try {
       // Get invoice details for notifications
-      const invoiceResponse = await fetch(`/api/invoices/${paymentReference}`);
+      const invoiceResponse = await fetch(`/api/invoices?paymentReference=${paymentReference}`);
       if (!invoiceResponse.ok) {
         throw new Error('Failed to fetch invoice details');
       }

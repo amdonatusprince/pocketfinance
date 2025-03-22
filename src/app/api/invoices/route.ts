@@ -1,52 +1,27 @@
 import { NextResponse } from 'next/server';
-import connectToDatabase from '@/lib/db/mongodb';
-import { InvoiceModel } from '@/lib/db/models/invoice';
-import { ZodError } from 'zod';
+import clientPromise from '@/lib/db/mongodb';
+import { ObjectId } from 'mongodb';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     
-    // Connect to the database first and ensure connection is established
-    const connection = await connectToDatabase();
-    if (!connection) {
-      throw new Error('Failed to establish database connection');
-    }
+    // Connect to the database
+    const client = await clientPromise;
+    const db = client.db();
+    const collection = db.collection('invoices');
     
+    // Insert the invoice
+    const result = await collection.insertOne({
+      ...body,
+      createdAt: new Date().toISOString()
+    });
     
-    // Create a new invoice document
-    const invoice = new InvoiceModel(body);
+    return NextResponse.json({ 
+      success: true, 
+      invoice: { _id: result.insertedId, ...body } 
+    }, { status: 201 });
     
-    try {
-      // Save if validation passes
-      await invoice.save();
-      return NextResponse.json({ success: true, invoice }, { status: 201 });
-    
-    } catch (error) {
-      if (error instanceof ZodError) {
-        const errors = error.errors.map(err => ({
-          path: err.path.join('.'),
-          message: err.message
-        }));
-        console.error('Validation errors:', JSON.stringify(errors, null, 2));
-        return NextResponse.json(
-          { 
-            success: false, 
-            error: 'Validation failed', 
-            details: errors
-          },
-          { status: 400 }
-        );
-      }
-      return NextResponse.json(
-        { 
-          success: false, 
-          error: 'Database error', 
-          details: error instanceof Error ? error.message : 'Unknown error'
-        },
-        { status: 500 }
-      );
-    }
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
@@ -63,14 +38,31 @@ export async function POST(request: Request) {
 export async function GET(request: Request) {
   try {
     // Connect to the database
-    await connectToDatabase();
+    const client = await clientPromise;
+    const db = client.db();
+    const collection = db.collection('invoices');
     
     // Get query parameters
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const address = searchParams.get('address');
+    const paymentReference = searchParams.get('paymentReference');
+
+    // If paymentReference is provided, return single invoice
+    if (paymentReference) {
+      const invoice = await collection.findOne({ paymentReference });
+      
+      if (!invoice) {
+        return NextResponse.json(
+          { error: 'Invoice not found' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json(invoice);
+    }
     
-    // Build query
+    // Otherwise, build query for multiple invoices
     const query: any = {};
     if (status) query.status = status;
     if (address) {
@@ -81,13 +73,65 @@ export async function GET(request: Request) {
     }
     
     // Fetch invoices
-    const invoices = await InvoiceModel.find(query).sort({ createdAt: -1 });
+    const invoices = await collection.find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
     
     return NextResponse.json({ success: true, invoices });
   } catch (error) {
     console.error('Error fetching invoices:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch invoices' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    // Get query parameters
+    const { searchParams } = new URL(request.url);
+    const paymentReference = searchParams.get('paymentReference');
+
+    if (!paymentReference) {
+      return NextResponse.json(
+        { error: 'Payment reference is required' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { status, paidAt } = body;
+
+    // Connect to database
+    const client = await clientPromise;
+    const db = client.db();
+    const collection = db.collection('invoices');
+    
+    // Find and update the invoice
+    const result = await collection.findOneAndUpdate(
+      { paymentReference },
+      { 
+        $set: { 
+          status,
+          ...(paidAt && { paidAt })
+        }
+      },
+      { returnDocument: 'after' }
+    );
+
+    if (!result?.value) {
+      return NextResponse.json(
+        { error: 'Invoice not found' },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ success: true, invoice: result.value });
+  } catch (error) {
+    console.error('Error updating invoice:', error);
+    return NextResponse.json(
+      { error: 'Failed to update invoice' },
       { status: 500 }
     );
   }
