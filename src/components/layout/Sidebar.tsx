@@ -9,6 +9,7 @@ import {
   Wallet, 
   User, 
   BarChart2,
+  MessageSquare,
   Menu,
   LogOut,
   Sun,
@@ -19,8 +20,9 @@ import {
 import { useTheme } from '@/components/providers/ThemeProvider';
 
 const navigation = [
+  // { name: 'Chats', href: '/chats', icon: MessageSquare },
   { name: 'Invoices', href: '/invoices', icon: FileText },
-  { name: 'Payments', href: '/payments', icon: CreditCard },
+  // { name: 'Payments', href: '/payments', icon: CreditCard },
   { name: 'Assets', href: '/assets', icon: Wallet },
   { name: 'Account', href: '/account', icon: User },
 ];
